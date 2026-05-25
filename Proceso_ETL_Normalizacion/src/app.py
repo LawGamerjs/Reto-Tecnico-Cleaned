@@ -2,29 +2,46 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 import os
+from supabase import create_client, Client
 
 st.set_page_config(
     page_title="Dashboard de Asistencia - Control Operativo",
     layout="wide"
 )
 
-@st.cache_data
-def cargar_datos(ruta_archivo: str) -> pd.DataFrame:
-    if not os.path.exists(ruta_archivo):
-        return pd.DataFrame()
-    df = pd.read_csv(ruta_archivo)
-    df['DNI'] = df['DNI'].astype(str).str.strip().str.zfill(8)
-    df['fecha_asistencia'] = pd.to_datetime(df['fecha_asistencia']).dt.date
-    df['FECHA DE INGRESO'] = pd.to_datetime(df['FECHA DE INGRESO']).dt.date
-    df['FECHA DE CESE'] = pd.to_datetime(df['FECHA DE CESE']).dt.date
-    return df
+@st.cache_resource
+def inicializar_supabase() -> Client:
+    url = st.secrets["SUPABASE_URL"]
+    key = st.secrets["SUPABASE_KEY"]
+    return create_client(url, key)
 
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-RUTA_DATOS = os.path.join(BASE_DIR, "data", "processed", "asistencia_larga_limpia.csv")
-df_asistencia = cargar_datos(RUTA_DATOS)
+@st.cache_data
+def cargar_datos_supabase() -> pd.DataFrame:
+    try:
+        supabase = inicializar_supabase()
+        response = supabase.table("asistencia_procesada").select("*").execute()
+        if not response.data:
+            return pd.DataFrame()
+        
+        df = pd.DataFrame(response.data)
+        
+        if 'id' in df.columns:
+            df = df.drop(columns=['id'])
+        if 'created_at' in df.columns:
+            df = df.drop(columns=['created_at'])
+            
+        df['DNI'] = df['DNI'].astype(str).str.strip().str.zfill(8)
+        df['fecha_asistencia'] = pd.to_datetime(df['fecha_asistencia']).dt.date
+        df['FECHA DE INGRESO'] = pd.to_datetime(df['FECHA DE INGRESO']).dt.date
+        df['FECHA DE CESE'] = pd.to_datetime(df['FECHA DE CESE']).dt.date
+        return df
+    except Exception:
+        return pd.DataFrame()
+
+df_asistencia = cargar_datos_supabase()
 
 if df_asistencia.empty:
-    st.error(f"Archivo de datos no detectado en '{RUTA_DATOS}'. Corre primero 'etl_pipeline.py'.")
+    st.error("No se pudieron recuperar datos desde la tabla 'asistencia_procesada' en Supabase.")
 else:
     st.title("Métricas de Control de Asistencia y Calidad de Datos")
     st.markdown("---")
