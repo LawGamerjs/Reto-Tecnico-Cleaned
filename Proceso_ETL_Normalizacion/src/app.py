@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 import os
+import datetime
 from supabase import create_client, Client
 
 st.set_page_config(
@@ -21,19 +22,15 @@ def cargar_datos_supabase() -> pd.DataFrame:
         supabase = inicializar_supabase()
         response = supabase.table("asistencia_procesada").select("*").execute()
         
-        # 1. Validar si la respuesta viene vacía o con error de API
         if not response.data:
-            st.warning("La consulta se ejecutó, pero la tabla 'asistencia_procesada' está completamente vacía.")
             return pd.DataFrame()
         
         df = pd.DataFrame(response.data)
         
-        # 2. Eliminar columnas de control si existen
         for col in ['id', 'created_at']:
             if col in df.columns:
                 df = df.drop(columns=[col])
         
-        # 3. Mapeo de minúsculas de la base de datos a las mayúsculas de tu Dashboard
         columnas_mapeo = {
             'dni': 'DNI',
             'apellidos_y_nombres': 'APELLIDOS Y NOMBRES',
@@ -52,7 +49,6 @@ def cargar_datos_supabase() -> pd.DataFrame:
         columnas_a_renombrar = {k: v for k, v in columnas_mapeo.items() if k in df.columns}
         df = df.rename(columns=columnas_a_renombrar)
         
-        # 4. Forzar tipos de datos de forma segura
         if 'DNI' in df.columns:
             df['DNI'] = df['DNI'].astype(str).str.strip().str.zfill(8)
             
@@ -66,9 +62,7 @@ def cargar_datos_supabase() -> pd.DataFrame:
             df['FECHA DE CESE'] = pd.to_datetime(df['FECHA DE CESE']).dt.date
             
         return df
-    except Exception as e:
-        # Esto nos va a pintar el error exacto en la web de Streamlit para saber la raíz
-        st.error(f"Error interno detallado: {str(e)}")
+    except Exception:
         return pd.DataFrame()
 
 df_asistencia = cargar_datos_supabase()
@@ -81,15 +75,28 @@ else:
 
     st.sidebar.header("Filtros de Control Operativo")
     
-    fecha_min = df_asistencia['fecha_asistencia'].min()
-    fecha_max = df_asistencia['fecha_asistencia'].max()
+    fecha_min = datetime.date(2026, 4, 19)
+    fecha_max = datetime.date(2026, 5, 18)
     
+    if 'rango_seleccionado' not in st.session_state:
+        st.session_state.rango_seleccionado = [fecha_min, fecha_max]
+        
     rango_fechas = st.sidebar.date_input(
         "Periodo de Análisis",
-        value=[fecha_min, fecha_max],
+        value=st.session_state.rango_seleccionado,
         min_value=fecha_min,
         max_value=fecha_max
     )
+    
+    if isinstance(rango_fechas, (list, tuple)) and len(rango_fechas) == 2:
+        st.session_state.rango_seleccionado = list(rango_fechas)
+        f_inicio, f_fin = rango_fechas
+    elif isinstance(rango_fechas, (list, tuple)) and len(rango_fechas) == 1:
+        f_inicio = f_fin = rango_fechas[0]
+    else:
+        f_inicio, f_fin = st.session_state.rango_seleccionado
+
+    mask = (df_asistencia['fecha_asistencia'] >= f_inicio) & (df_asistencia['fecha_asistencia'] <= f_fin)
     
     lista_clientes = sorted(df_asistencia['CLIENTE'].dropna().unique().tolist())
     clientes_sel = st.sidebar.multiselect("Cliente", options=lista_clientes, placeholder="Seleccionar opciones")
@@ -109,15 +116,6 @@ else:
     lista_estados = sorted(df_asistencia['estado_normalizado'].dropna().unique().tolist())
     estados_sel = st.sidebar.multiselect("Estado", options=lista_estados, placeholder="Seleccionar opciones")
 
-    if isinstance(rango_fechas, list) or isinstance(rango_fechas, tuple):
-        if len(rango_fechas) == 2:
-            f_inicio, f_fin = rango_fechas
-        else:
-            f_inicio = f_fin = rango_fechas[0]
-    else:
-        f_inicio = f_fin = rango_fechas
-
-    mask = (df_asistencia['fecha_asistencia'] >= f_inicio) & (df_asistencia['fecha_asistencia'] <= f_fin)
     if clientes_sel:
         mask &= df_asistencia['CLIENTE'].isin(clientes_sel)
     if unidades_sel:
