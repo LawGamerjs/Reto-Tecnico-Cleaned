@@ -22,20 +22,23 @@ def cargar_datos_supabase() -> pd.DataFrame:
         response = supabase.table("asistencia_procesada").select("*").execute()
         if not response.data:
             return pd.DataFrame()
-        
         df = pd.DataFrame(response.data)
-        
-        if 'id' in df.columns:
-            df = df.drop(columns=['id'])
-        if 'created_at' in df.columns:
-            df = df.drop(columns=['created_at'])
-            
+        for col in ['id', 'created_at']:
+            if col in df.columns:
+                df = df.drop(columns=[col])
+        if 'dni' in df.columns and 'DNI' not in df.columns:
+            df = df.rename(columns={c: c.upper() for c in df.columns})
+            df = df.rename(columns={'APELLIDOS_Y_NOMBRES': 'APELLIDOS Y NOMBRES', 
+                                    'FECHA_INGRESO': 'FECHA DE INGRESO', 
+                                    'FECHA_CESE': 'FECHA DE CESE'})
+
         df['DNI'] = df['DNI'].astype(str).str.strip().str.zfill(8)
         df['fecha_asistencia'] = pd.to_datetime(df['fecha_asistencia']).dt.date
         df['FECHA DE INGRESO'] = pd.to_datetime(df['FECHA DE INGRESO']).dt.date
         df['FECHA DE CESE'] = pd.to_datetime(df['FECHA DE CESE']).dt.date
         return df
-    except Exception:
+    except Exception as e:
+        st.warning(f"Error de mapeo interno: {str(e)}")
         return pd.DataFrame()
 
 df_asistencia = cargar_datos_supabase()
