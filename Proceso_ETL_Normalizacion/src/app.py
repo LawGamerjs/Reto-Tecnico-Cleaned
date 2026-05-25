@@ -20,22 +20,55 @@ def cargar_datos_supabase() -> pd.DataFrame:
     try:
         supabase = inicializar_supabase()
         response = supabase.table("asistencia_procesada").select("*").execute()
+        
+        # 1. Validar si la respuesta viene vacía o con error de API
         if not response.data:
+            st.warning("La consulta se ejecutó, pero la tabla 'asistencia_procesada' está completamente vacía.")
             return pd.DataFrame()
         
         df = pd.DataFrame(response.data)
         
-        if 'id' in df.columns:
-            df = df.drop(columns=['id'])
-        if 'created_at' in df.columns:
-            df = df.drop(columns=['created_at'])
+        # 2. Eliminar columnas de control si existen
+        for col in ['id', 'created_at']:
+            if col in df.columns:
+                df = df.drop(columns=[col])
+        
+        # 3. Mapeo de minúsculas de la base de datos a las mayúsculas de tu Dashboard
+        columnas_mapeo = {
+            'dni': 'DNI',
+            'apellidos_y_nombres': 'APELLIDOS Y NOMBRES',
+            'cargo': 'CARGO',
+            'cliente': 'CLIENTE',
+            'direccion': 'DIRECCION',
+            'supervisor': 'SUPERVISOR',
+            'jornada': 'JORNADA',
+            'horario': 'HORARIO',
+            'descanso': 'DESCANSO',
+            'unidad': 'UNIDAD',
+            'fecha_ingreso': 'FECHA DE INGRESO',
+            'fecha_cese': 'FECHA DE CESE'
+        }
+        
+        columnas_a_renombrar = {k: v for k, v in columnas_mapeo.items() if k in df.columns}
+        df = df.rename(columns=columnas_a_renombrar)
+        
+        # 4. Forzar tipos de datos de forma segura
+        if 'DNI' in df.columns:
+            df['DNI'] = df['DNI'].astype(str).str.strip().str.zfill(8)
             
-        df['DNI'] = df['DNI'].astype(str).str.strip().str.zfill(8)
-        df['fecha_asistencia'] = pd.to_datetime(df['fecha_asistencia']).dt.date
-        df['FECHA DE INGRESO'] = pd.to_datetime(df['FECHA DE INGRESO']).dt.date
-        df['FECHA DE CESE'] = pd.to_datetime(df['FECHA DE CESE']).dt.date
+        if 'fecha_asistencia' in df.columns:
+            df['fecha_asistencia'] = pd.to_datetime(df['fecha_asistencia']).dt.date
+            
+        if 'FECHA DE INGRESO' in df.columns:
+            df['FECHA DE INGRESO'] = pd.to_datetime(df['FECHA DE INGRESO']).dt.date
+            
+        if 'FECHA DE CESE' in df.columns:
+            df['FECHA DE CESE'] = pd.to_datetime(df['FECHA DE CESE']).dt.date
+            
         return df
-    except Exception:
+    except Exception as e:
+        # Esto nos va a pintar el error exacto en la web de Streamlit para saber la raíz
+        st.error(f"Error interno detallado: {str(e)}")
         return pd.DataFrame()
 
 df_asistencia = cargar_datos_supabase()

@@ -18,6 +18,26 @@ class AsistenciaETL:
             'C': 'Cese', 'DM': 'Descanso Médico', 'M': 'Maternidad', 
             'LSG': 'Licencia sin Goce'
         }
+        self.mapeo_supabase = {
+            'DNI': 'dni',
+            'APELLIDOS Y NOMBRES': 'apellidos_y_nombres',
+            'CARGO': 'cargo',
+            'CLIENTE': 'cliente',
+            'DIRECCION': 'direccion',
+            'SUPERVISOR': 'supervisor',
+            'JORNADA': 'jornada',
+            'HORARIO': 'horario',
+            'DESCANSO': 'descanso',
+            'UNIDAD': 'unidad',
+            'FECHA DE INGRESO': 'fecha_ingreso',
+            'FECHA DE CESE': 'fecha_cese',
+            'fecha_asistencia': 'fecha_asistencia',
+            'estado_original': 'estado_original',
+            'estado_limpio': 'estado_limpio',
+            'estado_normalizado': 'estado_normalizado',
+            'es_atipico': 'es_atipico',
+            'es_activo_en_fecha': 'es_activo_en_fecha'
+        }
 
     def _normalizar_cabeceras_fechas(self, columnas_variables: list) -> list:
         fechas_procesadas = []
@@ -82,13 +102,17 @@ class AsistenciaETL:
             return ingreso <= actual <= cese
 
         df_largo['es_activo_en_fecha'] = df_largo.apply(verificar_contrato_activo, axis=1)
+        
+        self._imprimir_metricas_auditoria(df_largo)
+
+        print(f"[{datetime.now().strftime('%X')}] Adaptando cabeceras a formato relacional Supabase...")
+        df_supabase = df_largo.rename(columns=self.mapeo_supabase)
 
         print(f"[{datetime.now().strftime('%X')}] Exportando archivo procesado a la carpeta processed...")
         os.makedirs(os.path.dirname(self.ruta_output), exist_ok=True)
-        df_largo.to_csv(self.ruta_output, index=False, encoding='utf-8-sig')
+        df_supabase.to_csv(self.ruta_output, index=False, encoding='utf-8-sig')
         
-        self._imprimir_metricas_auditoria(df_largo)
-        return df_largo
+        return df_supabase
 
     def _imprimir_metricas_auditoria(self, df: pd.DataFrame):
         total_filas = len(df)
