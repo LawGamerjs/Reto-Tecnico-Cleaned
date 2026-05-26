@@ -20,7 +20,7 @@ def inicializar_supabase() -> Client:
 def cargar_datos_supabase() -> pd.DataFrame:
     try:
         supabase = inicializar_supabase()
-        response = supabase.table("asistencia_procesada").select("*").execute()
+        response = supabase.table("asistencia_procesada").select("*").limit(20000).execute()
         
         if not response.data:
             return pd.DataFrame()
