@@ -73,6 +73,7 @@ else:
     st.title("Métricas de Control de Asistencia y Calidad de Datos")
     st.markdown("---")
 
+    # 1. BLOQUE UNIFICADO DE INTERFAZ (SIDEBAR)
     st.sidebar.header("Filtros de Control Operativo")
     
     fecha_min = datetime.date(2026, 4, 19)
@@ -96,8 +97,6 @@ else:
     else:
         f_inicio, f_fin = st.session_state.rango_seleccionado
 
-    mask = (df_asistencia['fecha_asistencia'] >= f_inicio) & (df_asistencia['fecha_asistencia'] <= f_fin)
-    
     lista_clientes = sorted(df_asistencia['CLIENTE'].dropna().unique().tolist())
     clientes_sel = st.sidebar.multiselect("Cliente", options=lista_clientes, placeholder="Seleccionar opciones")
     
@@ -116,6 +115,9 @@ else:
     lista_estados = sorted(df_asistencia['estado_normalizado'].dropna().unique().tolist())
     estados_sel = st.sidebar.multiselect("Estado", options=lista_estados, placeholder="Seleccionar opciones")
 
+    # 2. CONSTRUCCIÓN Y APLICACIÓN CONTROLADA DE LA MÁSCARA LÓGICA
+    mask = (df_asistencia['fecha_asistencia'] >= f_inicio) & (df_asistencia['fecha_asistencia'] <= f_fin)
+    
     if clientes_sel:
         mask &= df_asistencia['CLIENTE'].isin(clientes_sel)
     if unidades_sel:
